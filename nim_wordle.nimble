@@ -5,7 +5,7 @@ author        = "JCallicoat"
 description   = "A nim clie wordle game"
 license       = "MIT"
 srcDir        = "src"
-bin           = @["nim_wordle"]
+bin           = @["nim_wordle", "solver"]
 
 
 # Dependencies

@@ -5,7 +5,7 @@ import std/sequtils
 import std/strformat
 import std/strutils
 import std/tables
-from std/terminal import ansiResetCode, ansiStyleCode, cursorBackward,
+from std/terminal import ansiResetCode, ansiStyleCode, BackgroundColor, cursorBackward,
     eraseLine, eraseScreen, ForegroundColor, getch, resetAttributes, setCursorPos,
         styledWrite, styledWriteLine, terminalSize
 

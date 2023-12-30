@@ -1,0 +1,7 @@
+nim_wordle
+solver
+
+*.txt
+*.sh
+*.py
+test*
