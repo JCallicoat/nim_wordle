@@ -54,6 +54,7 @@ proc writeLine(self: var GameState, c: ForegroundColor, s: string) =
   self.cursorPos.h += 1
 
 proc writeLetter(self: GameState, letter: Letter) =
+  # +60 for bright ANSI colors
   case letter.state:
   of Default:
     stdout.write(&"{ansiStyleCode(ord(fgDefault)+60)}{letter.chr}{ansiResetCode}")
@@ -125,14 +126,25 @@ proc guessValid(self: var GameState, guess: string): bool =
 proc getGuess(self: var GameState): string =
   self.write(fgDefault, "Enter a guess: ")
   var guess = ""
-  var res = stdin.readLine(guess)
-  while not res or guess.len != 5 or not self.guessValid(guess):
-    self.write(fgDefault, "Enter a guess: ")
-    if guess.len > 0:
-      stdout.write(" ".repeat(guess.len))
-      cursorBackward(guess.len)
-    res = stdin.readLine(guess)
-  return guess.toUpper()
+  while true:
+    stdout.flushFile()
+    let ch = getch()
+    if ch == '\x03':
+      quit()
+    elif ch in {'\r', '\n'}:
+      if guess.len == 5 and self.guessValid(guess):
+        return guess.toUpper()
+      continue
+    elif ch == '\b' or ch == '\x7f':
+      if guess.len > 0:
+        guess.setLen(guess.len - 1)
+        cursorBackward(1)
+        stdout.write(" ")
+        cursorBackward(1)
+      continue
+    elif ch.isAlphaAscii() and guess.len < 5:
+      guess.add(ch.toUpperAscii())
+      stdout.styledWrite(fgDefault, $ch.toUpperAscii())
 
 proc checkLetter(self: var GameState, chr: char, i: int): Letter =
   var state = Unused
@@ -159,14 +171,12 @@ proc checkGuess(self: var GameState): bool =
     elif letter.state == Possible:
       chrPossibleTotal[chr] = chrPossibleTotal.getOrDefault(chr) + 1
 
-  # this feels hacky 
   for i in countdown(4, 0):
     let letter = guessLetters[i]
     if letter.state == Possible:
       let correctCount = chrCorrectTotal.getOrDefault(letter.chr)
-      let possibleCount = chrPossibleTotal[letter.chr]
-      if possibleCount > self.chrMaxTotal.getOrDefault(letter.chr) or
-         (correctCount > 0 and possibleCount >= correctCount):
+      let possibleCount = chrPossibleTotal.getOrDefault(letter.chr)
+      if possibleCount > self.chrMaxTotal.getOrDefault(letter.chr) - chrCorrectTotal.getOrDefault(letter.chr):
         chrPossibleTotal[letter.chr] -= 1
         guessLetters[i].state = Unused
 
@@ -188,7 +198,7 @@ proc run(self: var GameState): bool =
     self.writeLost()
   self.write(fgDefault, "Play again? [Y/n] ")
   again = getch()
-  return again.toLowerAscii() in ['\r', 'y']
+  return again.toLowerAscii() in ['\r', '\n', 'y', 'Y']
 
 
 proc newGame: GameState =
@@ -203,12 +213,11 @@ proc newGame: GameState =
     letters[letter] = Letter(chr: letter, state: Default)
 
   randomize() # seed the rng
-  # let wordle = wl.wordList[2003].toUpper()
   let wordle = sample(wl.wordList).toUpper()
   var chrMaxTotal = initTable[char, int]()
   for chr in wordle:
-    discard chrMaxTotal.hasKeyOrPut(chr, wordle.count(chr))
-  
+    if chr notin chrMaxTotal:
+      chrMaxTotal[chr] = wordle.count(chr) 
   return GameState(w: size.w, h: size.h, cursorPos: (w, h),
                    letters: letters, guesses: @[], wordle: wordle,
                    chrMaxTotal: chrMaxTotal)
