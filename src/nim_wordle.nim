@@ -41,6 +41,7 @@ type GameState = object
   guesses: seq[seq[Letter]]
   wordle: string
   chrMaxTotal: Table[char, int]
+  lastError: string
 
 
 # writing stuff
@@ -48,6 +49,7 @@ proc write(self: var GameState, c: ForegroundColor, s: string) =
   let w = int(self.w / 2) - int(s.len / 2)
   setCursorPos(w, self.cursorPos.h)
   stdout.styledWrite(c, s)
+  stdout.flushFile()
 
 proc writeLine(self: var GameState, c: ForegroundColor, s: string) =
   self.write(c, s & "\n")
@@ -106,6 +108,10 @@ proc writePrompt(self: var GameState) =
   if self.guesses.len > 0:
     self.writeGuesses()
     self.writeLine(fgDefault, "")
+  # show error prompt and then clear
+  if self.lastError.len > 0:
+    self.writeLine(fgRed, self.lastError)
+    self.lastError = ""
 
 proc writeWon(self: var GameState) =
   self.writePrompt()
@@ -123,6 +129,7 @@ proc guessValid(self: var GameState, guess: string): bool =
   return binarySearch(wl.wordList, guess.toLower()) > -1 or
     binarySearch(vwl.validWordList, guess.toLower()) > -1
 
+
 proc getGuess(self: var GameState): string =
   self.write(fgDefault, "Enter a guess: ")
   var guess = ""
@@ -134,7 +141,15 @@ proc getGuess(self: var GameState): string =
     elif ch in {'\r', '\n'}:
       if guess.len == 5 and self.guessValid(guess):
         return guess.toUpper()
-      continue
+      else:
+        self.lastError = "Invalid word or wrong length"
+        self.writePrompt()                    # full redraw (shows the error)
+        
+        # Re-draw the prompt + what the user has typed so far
+        self.write(fgDefault, "Enter a guess: ")
+        for c in guess:
+          stdout.styledWrite(fgDefault, $c)
+        continue
     elif ch == '\b' or ch == '\x7f':
       if guess.len > 0:
         guess.setLen(guess.len - 1)
@@ -143,8 +158,9 @@ proc getGuess(self: var GameState): string =
         cursorBackward(1)
       continue
     elif ch.isAlphaAscii() and guess.len < 5:
-      guess.add(ch.toUpperAscii())
-      stdout.styledWrite(fgDefault, $ch.toUpperAscii())
+      let upper = ch.toUpperAscii()
+      guess.add(upper)
+      stdout.styledWrite(fgDefault, $upper)
 
 proc checkLetter(self: var GameState, chr: char, i: int): Letter =
   var state = Unused
